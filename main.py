@@ -31,7 +31,7 @@ class GigaChatClient:
     async def _get_token(self):
         if self._token and self._token_expires > datetime.now():
             return self._token
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
                 headers={
@@ -48,7 +48,7 @@ class GigaChatClient:
 
     async def chat(self, messages, temperature=0.8):
         token = await self._get_token()
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 "https://gigachat.devices.sberbank.ru/api/v1/chat/completions",
                 headers={

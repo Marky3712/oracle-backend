@@ -26,20 +26,25 @@ class GigaChatClient:
         self.client_secret = os.environ.get("GIGACHAT_CLIENT_SECRET")
         self._token = None
         self._token_expires = None
+        
+        # Определяем, нужно ли кодировать
+        # Если secret уже выглядит как base64 (длинная строка с символами A-Za-z0-9+/=), используем как есть
+        # Иначе кодируем
+        if re.match(r'^[A-Za-z0-9+/=]+$', self.client_secret) and len(self.client_secret) > 20:
+            self.auth_key = self.client_secret
+        else:
+            credentials = f"{self.client_id}:{self.client_secret}"
+            self.auth_key = base64.b64encode(credentials.encode()).decode()
 
     async def _get_token(self):
         if self._token and self._token_expires > datetime.now():
             return self._token
         
-        # Формируем Basic Auth ключ
-        credentials = f"{self.client_id}:{self.client_secret}"
-        auth_key = base64.b64encode(credentials.encode()).decode()
-        
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
                 headers={
-                    "Authorization": f"Basic {auth_key}",
+                    "Authorization": f"Basic {self.auth_key}",
                     "RqUID": str(uuid.uuid4()),
                     "Content-Type": "application/x-www-form-urlencoded"
                 },
@@ -167,8 +172,13 @@ async def test_gigachat():
     }
     
     try:
-        credentials = f"{os.environ.get('GIGACHAT_CLIENT_ID')}:{os.environ.get('GIGACHAT_CLIENT_SECRET')}"
-        auth_key = base64.b64encode(credentials.encode()).decode()
+        secret = os.environ.get("GIGACHAT_CLIENT_SECRET")
+        # Определяем, нужно ли кодировать
+        if re.match(r'^[A-Za-z0-9+/=]+$', secret) and len(secret) > 20:
+            auth_key = secret
+        else:
+            credentials = f"{os.environ.get('GIGACHAT_CLIENT_ID')}:{secret}"
+            auth_key = base64.b64encode(credentials.encode()).decode()
         
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(

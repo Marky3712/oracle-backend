@@ -200,6 +200,17 @@ async def test_gigachat():
         result["error"] = str(e)
     
     return result
-
+@app.post("/api/oracle/debug")
+async def oracle_debug(request: OracleAskRequest):
+    import traceback
+    try:
+        messages = [
+            {"role": "system", "content": "Ты — Оракул. Отвечай кратко, максимум 2 предложения."},
+            {"role": "user", "content": request.question}
+        ]
+        answer = await gigachat.chat(messages, temperature=0.8)
+        return {"success": True, "answer": answer}
+    except Exception as e:
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)

@@ -24,18 +24,22 @@ class GigaChatClient:
     def __init__(self):
         self.client_id = os.environ.get("GIGACHAT_CLIENT_ID")
         self.client_secret = os.environ.get("GIGACHAT_CLIENT_SECRET")
-        self.auth_key = base64.b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
         self._token = None
         self._token_expires = None
 
     async def _get_token(self):
         if self._token and self._token_expires > datetime.now():
             return self._token
+        
+        # Формируем Basic Auth ключ
+        credentials = f"{self.client_id}:{self.client_secret}"
+        auth_key = base64.b64encode(credentials.encode()).decode()
+        
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
                 headers={
-                    "Authorization": f"Basic {self.auth_key}",
+                    "Authorization": f"Basic {auth_key}",
                     "RqUID": str(uuid.uuid4()),
                     "Content-Type": "application/x-www-form-urlencoded"
                 },
@@ -118,7 +122,6 @@ async def make_prediction(request: PredictRequest):
         else:
             raise HTTPException(status_code=400, detail="Неизвестный тип расклада")
 
-        # Добавляем информацию о картах, если есть
         if request.cards:
             cards_info = "\n".join([f"- {card.get('name')}: {card.get('meaning')}" for card in request.cards])
             user_prompt += f"\n\nВыпавшие карты:\n{cards_info}\n\nСделай предсказание, основываясь на этих картах."
@@ -152,16 +155,10 @@ async def oracle_ask(request: OracleAskRequest):
         return {"success": True, "answer": answer}
     except Exception as e:
         return {"success": False, "error": str(e), "answer": "Оракул временно молчит. Попробуй позже."}
-@app.get("/api/debug")
-async def debug():
-    import os
-    return {
-        "client_id": os.environ.get("GIGACHAT_CLIENT_ID", "не задан")[:10] + "...",
-        "has_secret": bool(os.environ.get("GIGACHAT_CLIENT_SECRET"))
-    }
+
+# ==================== ТЕСТОВЫЙ ЭНДПОИНТ ====================
 @app.get("/api/test-gigachat")
 async def test_gigachat():
-    import os
     result = {
         "has_client_id": bool(os.environ.get("GIGACHAT_CLIENT_ID")),
         "has_client_secret": bool(os.environ.get("GIGACHAT_CLIENT_SECRET")),
@@ -170,7 +167,8 @@ async def test_gigachat():
     }
     
     try:
-        auth_key = base64.b64encode(f"{os.environ.get('GIGACHAT_CLIENT_ID')}:{os.environ.get('GIGACHAT_CLIENT_SECRET')}".encode()).decode()
+        credentials = f"{os.environ.get('GIGACHAT_CLIENT_ID')}:{os.environ.get('GIGACHAT_CLIENT_SECRET')}"
+        auth_key = base64.b64encode(credentials.encode()).decode()
         
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
@@ -192,7 +190,6 @@ async def test_gigachat():
         result["error"] = str(e)
     
     return result
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=10000)
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)

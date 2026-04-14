@@ -159,7 +159,39 @@ async def debug():
         "client_id": os.environ.get("GIGACHAT_CLIENT_ID", "не задан")[:10] + "...",
         "has_secret": bool(os.environ.get("GIGACHAT_CLIENT_SECRET"))
     }
-
+@app.get("/api/test-gigachat")
+async def test_gigachat():
+    import os
+    result = {
+        "has_client_id": bool(os.environ.get("GIGACHAT_CLIENT_ID")),
+        "has_client_secret": bool(os.environ.get("GIGACHAT_CLIENT_SECRET")),
+        "token_response": None,
+        "error": None
+    }
+    
+    try:
+        auth_key = base64.b64encode(f"{os.environ.get('GIGACHAT_CLIENT_ID')}:{os.environ.get('GIGACHAT_CLIENT_SECRET')}".encode()).decode()
+        
+        async with httpx.AsyncClient(verify=False) as client:
+            response = await client.post(
+                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+                headers={
+                    "Authorization": f"Basic {auth_key}",
+                    "RqUID": str(uuid.uuid4()),
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                data={"scope": "GIGACHAT_API_PERS"}
+            )
+            result["token_response"] = response.status_code
+            if response.status_code == 200:
+                data = response.json()
+                result["has_access_token"] = bool(data.get("access_token"))
+            else:
+                result["error"] = response.text
+    except Exception as e:
+        result["error"] = str(e)
+    
+    return result
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)
 if __name__ == "__main__":

@@ -44,7 +44,13 @@ class GigaChatClient:
                 },
                 data={"scope": "GIGACHAT_API_PERS"}
             )
+            if response.status_code != 200:
+                raise Exception(f"Ошибка получения токена: {response.text}")
+            
             result = response.json()
+            if "access_token" not in result:
+                raise Exception(f"Токен не получен: {result}")
+            
             self._token = result["access_token"]
             self._token_expires = datetime.now() + timedelta(seconds=result["expires_in"])
             return self._token

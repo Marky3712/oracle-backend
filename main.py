@@ -28,7 +28,6 @@ class GigaChatClient:
         self._token_expires = None
 
     async def _get_token(self):
-        # Проверяем, что токен существует и не истёк
         if self._token is not None and self._token_expires is not None and self._token_expires > datetime.now():
             return self._token
         
@@ -53,7 +52,9 @@ class GigaChatClient:
                 raise Exception(f"Токен не получен: {result}")
             
             self._token = result["access_token"]
-            self._token_expires = datetime.now() + timedelta(seconds=result["expires_in"])
+            # Если expires_in нет — ставим 1 час (3600 секунд)
+            expires_in = result.get("expires_in", 3600)
+            self._token_expires = datetime.now() + timedelta(seconds=expires_in)
             return self._token
 
     async def chat(self, messages, temperature=0.8):

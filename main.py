@@ -28,7 +28,8 @@ class GigaChatClient:
         self._token_expires = None
 
     async def _get_token(self):
-        if self._token and self._token_expires > datetime.now():
+        # Проверяем, что токен существует и не истёк
+        if self._token is not None and self._token_expires is not None and self._token_expires > datetime.now():
             return self._token
         
         credentials = f"{self.client_id}:{self.client_secret}"

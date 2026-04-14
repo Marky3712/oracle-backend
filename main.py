@@ -152,6 +152,15 @@ async def oracle_ask(request: OracleAskRequest):
         return {"success": True, "answer": answer}
     except Exception as e:
         return {"success": False, "error": str(e), "answer": "Оракул временно молчит. Попробуй позже."}
+@app.get("/api/debug")
+async def debug():
+    import os
+    return {
+        "client_id": os.environ.get("GIGACHAT_CLIENT_ID", "не задан")[:10] + "...",
+        "has_secret": bool(os.environ.get("GIGACHAT_CLIENT_SECRET"))
+    }
 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=10000)
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)

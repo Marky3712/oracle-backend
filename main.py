@@ -264,7 +264,7 @@ async def send_daily_horoscope():
 ❓ Магический шар (Да/Нет)
 🧠 Чат с духом Оракула — ответы на любые вопросы
 
-👉 *Открыть бота:* @твой_бот
+👉 *Открыть чат с Оракулом :* @MudroeTaroBot
 ━━━━━━━━━━━━━━━━━━━━━"""
 
     async with httpx.AsyncClient() as client:

@@ -195,12 +195,14 @@ async def generate_daily_horoscope(sign: str) -> dict:
 async def send_daily_horoscope():
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    channel_username = os.environ.get("TELEGRAM_CHANNEL_USERNAME")
 
     if not bot_token or not chat_id:
         return {"success": False, "error": "Не настроены TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID"}
 
     today = datetime.now().strftime("%d.%m.%Y")
     results = []
+    sent_messages = []
 
     for sign in ZODIAC_SIGNS:
         horo_data = await generate_daily_horoscope(sign)
@@ -232,26 +234,33 @@ async def send_daily_horoscope():
                     "parse_mode": "Markdown"
                 }
             )
+            result_data = response.json()
+            if response.status_code == 200:
+                message_id = result_data.get("result", {}).get("message_id")
+                sent_messages.append({"sign": sign, "message_id": message_id})
             results.append({"sign": sign, "success": response.status_code == 200})
         await asyncio.sleep(0.5)
 
-    # ==================== НАВИГАЦИОННОЕ СООБЩЕНИЕ ====================
-    navigation_message = f"""🔮 *Оракул — навигация по гороскопу* 🔮
+    # ==================== НАВИГАЦИОННОЕ СООБЩЕНИЕ С ССЫЛКАМИ ====================
+    if channel_username:
+        navigation_message = f"""🔮 *Оракул — навигация по гороскопу* 🔮
 
 📅 *Гороскоп на {today}*
 
-Чтобы найти свой знак, используй поиск по хештегу:
+Кликни на свой знак — перейдёшь к предсказанию:
 
 """
-    for sign in ZODIAC_SIGNS:
-        emoji = ZODIAC_EMOJIS.get(sign, "🔮")
-        navigation_message += f"• {emoji} `#{sign.lower()}`\n"
+        for item in sent_messages:
+            sign = item["sign"]
+            emoji = ZODIAC_EMOJIS.get(sign, "🔮")
+            link = f"https://t.me/{channel_username}/{item['message_id']}"
+            navigation_message += f"• {emoji} [{sign}]({link})\n"
 
-    navigation_message += """
+        navigation_message += """
 📌 *Как пользоваться:*
-1️⃣ Нажми на три точки в правом верхнем углу
-2️⃣ Выбери «Поиск»
-3️⃣ Введи хештег своего знака (например, #козерог)
+1️⃣ Нажми на свой знак
+2️⃣ Перейдёшь к свежему гороскопу
+3️⃣ Сохрани ссылку, чтобы вернуться позже
 
 ✨ *Каждый день в 8:00 — свежий гороскоп от Оракула!*
 
@@ -264,18 +273,18 @@ async def send_daily_horoscope():
 ❓ Магический шар (Да/Нет)
 🧠 Чат с духом Оракула — ответы на любые вопросы
 
-👉 *Открыть чат с Оракулом :* @MudroeTaroBot
+👉 *Открыть бота:* @MudroeTaroBot
 ━━━━━━━━━━━━━━━━━━━━━"""
 
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": navigation_message,
-                "parse_mode": "Markdown"
-            }
-        )
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": navigation_message,
+                    "parse_mode": "Markdown"
+                }
+            )
 
     return {"success": True, "results": results}
 
@@ -342,5 +351,7 @@ async def oracle_debug(request: OracleAskRequest):
     except Exception as e:
         return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=10000)
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)

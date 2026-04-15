@@ -205,6 +205,125 @@ async def oracle_debug(request: OracleAskRequest):
         return {"success": True, "answer": answer}
     except Exception as e:
         return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+# ==================== ГОРОСКОП ПО ЗНАКАМ ЗОДИАКА ====================
+ZODIAC_SIGNS = [
+    "Овен", "Телец", "Близнецы", "Рак", "Лев", "Дева",
+    "Весы", "Скорпион", "Стрелец", "Козерог", "Водолей", "Рыбы"
+]
 
+ZODIAC_EMOJIS = {
+    "Овен": "♈️", "Телец": "♉️", "Близнецы": "♊️", "Рак": "♋️",
+    "Лев": "♌️", "Дева": "♍️", "Весы": "♎️", "Скорпион": "♏️",
+    "Стрелец": "♐️", "Козерог": "♑️", "Водолей": "♒️", "Рыбы": "♓️"
+}
+
+async def generate_daily_horoscope(sign: str) -> dict:
+    """Генерирует гороскоп и карту дня для одного знака через GigaChat"""
+    try:
+        today = datetime.now().strftime("%d.%m.%Y")
+        messages = [
+            {"role": "system", "content": f"""Ты — Оракул. Напиши предсказание для знака {sign} на сегодня.
+Формат ответа (строго):
+ГОРОСКОП: 3-4 предложения, таинственно, но с добрым посылом.
+КАРТА ДНЯ: название карты Таро (из старших арканов).
+ОПИСАНИЕ КАРТЫ: 1 предложение, что эта карта значит для {sign} сегодня.
+
+Никаких лишних слов, только факты."""},
+            {"role": "user", "content": f"Сделай предсказание для {sign} на {today}"}
+        ]
+        response = await gigachat.chat(messages, temperature=0.8)
+        
+        # Парсим ответ
+        import re
+        horoscope_match = re.search(r"ГОРОСКОП:\s*(.+?)(?=КАРТА ДНЯ:|$)", response, re.DOTALL)
+        card_match = re.search(r"КАРТА ДНЯ:\s*(.+)", response)
+        desc_match = re.search(r"ОПИСАНИЕ КАРТЫ:\s*(.+)", response)
+        
+        return {
+            "success": True,
+            "horoscope": horoscope_match.group(1).strip() if horoscope_match else "Туман будущего неясен...",
+            "card": card_match.group(1).strip() if card_match else "Шут",
+            "card_desc": desc_match.group(1).strip() if desc_match else "Новое начало"
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/send-daily-horoscope")
+async def send_daily_horoscope():
+    """Отправляет гороскоп для всех знаков зодиака в Telegram группу"""
+    import httpx
+    
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        return {"success": False, "error": "Не настроены TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID"}
+    
+    today = datetime.now().strftime("%d.%m.%Y")
+    results = []
+    
+    for sign in ZODIAC_SIGNS:
+        # Генерируем гороскоп для знака
+        horo_data = await generate_daily_horoscope(sign)
+        if not horo_data["success"]:
+            results.append({"sign": sign, "success": False, "error": horo_data.get("error")})
+            continue
+        
+        emoji = ZODIAC_EMOJIS.get(sign, "🔮")
+        
+        # Формируем сообщение
+        message = f"""{emoji} *{sign}* {emoji}
+
+📜 *Гороскоп на {today}:*
+{horo_data['horoscope']}
+
+🃏 *Карта дня:* {horo_data['card']}
+{horo_data['card_desc']}
+
+✨ *Совет дня:* Доверься своей интуиции.
+
+#{sign.lower()} #оракул #гороскоп #картадня"""
+        
+        # Отправляем в Telegram
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": message,
+                    "parse_mode": "Markdown"
+                }
+            )
+            results.append({"sign": sign, "success": response.status_code == 200})
+        
+        # Небольшая задержка, чтобы не забанили
+        await asyncio.sleep(0.5)
+    
+    return {"success": True, "results": results}
+
+# ==================== ПЛАНИРОВЩИК ЕЖЕДНЕВНОЙ РАССЫЛКИ ====================
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+scheduler = AsyncIOScheduler()
+
+async def daily_horoscope_job():
+    """Отправляет гороскоп каждый день в 8:00"""
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{os.environ.get('RENDER_EXTERNAL_URL', 'http://localhost:10000')}/api/send-daily-horoscope"
+        )
+
+# Запускаем планировщик при старте
+@app.on_event("startup")
+async def start_scheduler():
+    scheduler.add_job(daily_horoscope_job, "cron", hour=8, minute=0)
+    scheduler.start()
+
+# Ручной запуск (для тестирования)
+@app.post("/api/test-horoscope")
+async def test_horoscope():
+    """Тестовый запуск для одного знака"""
+    test_result = await generate_daily_horoscope("Козерог")
+    return test_result
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)

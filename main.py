@@ -169,6 +169,8 @@ async def generate_daily_horoscope(sign: str) -> dict:
 ГОРОСКОП: 3-4 предложения, таинственно, но с добрым посылом.
 КАРТА ДНЯ: название карты Таро (из старших арканов).
 ОПИСАНИЕ КАРТЫ: 1 предложение, что эта карта значит для {sign} сегодня.
+СОВЕТ ДНЯ: 1 короткое предложение, персональный совет для {sign}.
+
 Никаких лишних слов, только факты."""},
             {"role": "user", "content": f"Сделай предсказание для {sign} на {today}"}
         ]
@@ -177,12 +179,14 @@ async def generate_daily_horoscope(sign: str) -> dict:
         horoscope_match = re.search(r"ГОРОСКОП:\s*(.+?)(?=КАРТА ДНЯ:|$)", response, re.DOTALL)
         card_match = re.search(r"КАРТА ДНЯ:\s*(.+)", response)
         desc_match = re.search(r"ОПИСАНИЕ КАРТЫ:\s*(.+)", response)
+        advice_match = re.search(r"СОВЕТ ДНЯ:\s*(.+)", response)
 
         return {
             "success": True,
             "horoscope": horoscope_match.group(1).strip() if horoscope_match else "Туман будущего неясен...",
             "card": card_match.group(1).strip() if card_match else "Шут",
-            "card_desc": desc_match.group(1).strip() if desc_match else "Новое начало"
+            "card_desc": desc_match.group(1).strip() if desc_match else "Новое начало",
+            "advice": advice_match.group(1).strip() if advice_match else "Доверься своей интуиции."
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -213,7 +217,7 @@ async def send_daily_horoscope():
 🃏 *Карта дня:* {horo_data['card']}
 {horo_data['card_desc']}
 
-✨ *Совет дня:* Доверься своей интуиции.
+✨ *Совет дня:* {horo_data['advice']}
 
 🔔 *Подпишись на ежедневные гороскопы — нажми 🔔 вверху чата!*
 
@@ -230,6 +234,48 @@ async def send_daily_horoscope():
             )
             results.append({"sign": sign, "success": response.status_code == 200})
         await asyncio.sleep(0.5)
+
+    # ==================== НАВИГАЦИОННОЕ СООБЩЕНИЕ ====================
+    navigation_message = f"""🔮 *Оракул — навигация по гороскопу* 🔮
+
+📅 *Гороскоп на {today}*
+
+Чтобы найти свой знак, используй поиск по хештегу:
+
+"""
+    for sign in ZODIAC_SIGNS:
+        emoji = ZODIAC_EMOJIS.get(sign, "🔮")
+        navigation_message += f"• {emoji} `#{sign.lower()}`\n"
+
+    navigation_message += """
+📌 *Как пользоваться:*
+1️⃣ Нажми на три точки в правом верхнем углу
+2️⃣ Выбери «Поиск»
+3️⃣ Введи хештег своего знака (например, #козерог)
+
+✨ *Каждый день в 8:00 — свежий гороскоп от Оракула!*
+
+#оракул #навигация #гороскоп2026
+
+━━━━━━━━━━━━━━━━━━━━━
+🧙 *Хочешь узнать больше?*
+
+🎴 Гадание на картах Таро
+❓ Магический шар (Да/Нет)
+🧠 Чат с духом Оракула — ответы на любые вопросы
+
+👉 *Открыть бота:* @твой_бот
+━━━━━━━━━━━━━━━━━━━━━"""
+
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": navigation_message,
+                "parse_mode": "Markdown"
+            }
+        )
 
     return {"success": True, "results": results}
 

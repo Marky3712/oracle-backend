@@ -289,7 +289,7 @@ async def send_daily_horoscope():
     return {"success": True, "results": results}
 
 # ==================== ПЛАНИРОВЩИК ЕЖЕДНЕВНОЙ РАССЫЛКИ ====================
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone='Europe/Moscow')
 
 async def daily_horoscope_job():
     async with httpx.AsyncClient() as client:

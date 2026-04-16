@@ -127,6 +127,8 @@ EVENING_TOPICS = [
 # ==================== ФУНКЦИИ ДЛЯ ПОСТОВ ====================
 async def generate_post_with_image(topic: str, hour: int) -> dict:
     try:
+        print(f"DEBUG: Начало генерации поста. Тема: {topic}, час: {hour}")
+        
         if hour == 12:
             style_prompt = "Напиши познавательный пост для соцсетей. 5-7 предложений. Используй эмодзи, разбивку на абзацы. Загадочный, но понятный стиль."
             image_prompt = f"Мистическая иллюстрация на тему: {topic}. Готический стиль, тёмные тона, золотые акценты, магическая атмосфера. Без текста."
@@ -134,15 +136,20 @@ async def generate_post_with_image(topic: str, hour: int) -> dict:
             style_prompt = "Напиши атмосферный, уютный пост для вечернего чтения. 5-7 предложений. Используй эмодзи, разбивку на абзацы. Как рассказчик у камина."
             image_prompt = f"Атмосферная иллюстрация к легенде или мистической истории на тему: {topic}. Стиль: тёмная фэнтези, готика, уютная магия. Без текста."
         
+        print(f"DEBUG: Промпт для текста: {style_prompt[:80]}...")
+        
         # Генерация текста
         text_messages = [
             {"role": "system", "content": f"Ты — Оракул, автор мистического Telegram-канала. Напиши пост.\n\n{style_prompt}\n\nЗаканчивай вопросом к читателю или призывом поделиться мнением."},
             {"role": "user", "content": f"Напиши пост на тему: {topic}"}
         ]
         post_text = await gigachat.chat(text_messages, temperature=0.8)
+        print(f"DEBUG: Текст получен, длина: {len(post_text)}")
         
         # Генерация картинки
+        print(f"DEBUG: Промпт для картинки: {image_prompt[:80]}...")
         image_base64 = await gigachat.generate_image(image_prompt)
+        print(f"DEBUG: Картинка получена, длина base64: {len(image_base64)}")
         
         return {
             "success": True,
@@ -151,23 +158,29 @@ async def generate_post_with_image(topic: str, hour: int) -> dict:
             "topic": topic
         }
     except Exception as e:
+        print(f"DEBUG: ОШИБКА: {str(e)}")
         return {"success": False, "error": str(e)}
 
 async def send_post_to_channel(chat_id: str, bot_token: str, post_text: str, image_base64: str = None):
     async with httpx.AsyncClient() as client:
         if image_base64:
+            print(f"DEBUG: Отправка фото в Telegram, длина caption: {len(post_text)}")
             await client.post(
                 f"https://api.telegram.org/bot{bot_token}/sendPhoto",
                 data={"chat_id": chat_id, "caption": post_text, "parse_mode": "Markdown"},
                 files={"photo": image_base64}
             )
+            print(f"DEBUG: Фото отправлено")
         else:
+            print(f"DEBUG: Отправка только текста в Telegram")
             await client.post(
                 f"https://api.telegram.org/bot{bot_token}/sendMessage",
                 json={"chat_id": chat_id, "text": post_text, "parse_mode": "Markdown"}
             )
+            print(f"DEBUG: Текст отправлен")
 
 async def midday_post_job():
+    print("DEBUG: midday_post_job запущена")
     topic = random.choice(MIDDAY_TOPICS)
     result = await generate_post_with_image(topic, 12)
     if result["success"]:
@@ -178,6 +191,7 @@ async def midday_post_job():
         print(f"Ошибка генерации дневного поста: {result.get('error')}")
 
 async def evening_post_job():
+    print("DEBUG: evening_post_job запущена")
     topic = random.choice(EVENING_TOPICS)
     result = await generate_post_with_image(topic, 17)
     if result["success"]:
@@ -271,11 +285,13 @@ async def test_gigachat():
 
 @app.get("/api/test-midday")
 async def test_midday():
+    print("DEBUG: /api/test-midday вызван")
     await midday_post_job()
     return {"status": "ok"}
 
 @app.get("/api/test-evening")
 async def test_evening():
+    print("DEBUG: /api/test-evening вызван")
     await evening_post_job()
     return {"status": "ok"}
 

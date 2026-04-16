@@ -427,5 +427,36 @@ async def start_scheduler():
     scheduler.start()
 
 # ==================== ЗАПУСК ====================
+@app.get("/api/test-gigachat")
+async def test_gigachat():
+    result = {
+        "has_client_id": bool(os.environ.get("GIGACHAT_CLIENT_ID")),
+        "has_client_secret": bool(os.environ.get("GIGACHAT_CLIENT_SECRET")),
+        "token_response": None,
+        "error": None
+    }
+    try:
+        credentials = f"{os.environ.get('GIGACHAT_CLIENT_ID')}:{os.environ.get('GIGACHAT_CLIENT_SECRET')}"
+        auth_key = base64.b64encode(credentials.encode()).decode()
+        async with httpx.AsyncClient(verify=False) as client:
+            response = await client.post(
+                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+                headers={
+                    "Authorization": f"Basic {auth_key}",
+                    "RqUID": str(uuid.uuid4()),
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                data={"scope": "GIGACHAT_API_PERS"}
+            )
+            result["token_response"] = response.status_code
+            if response.status_code == 200:
+                data = response.json()
+                result["has_access_token"] = bool(data.get("access_token"))
+                result["expires_in"] = data.get("expires_in")
+            else:
+                result["error"] = response.text
+    except Exception as e:
+        result["error"] = str(e)
+    return result
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)

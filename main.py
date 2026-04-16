@@ -458,5 +458,16 @@ async def test_gigachat():
     except Exception as e:
         result["error"] = str(e)
     return result
+    @app.get("/api/test-chat")
+async def test_chat():
+    try:
+        messages = [
+            {"role": "system", "content": "Ты — Оракул. Отвечай кратко."},
+            {"role": "user", "content": "Привет, как дела?"}
+        ]
+        response = await gigachat.chat(messages)
+        return {"success": True, "response": response}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)

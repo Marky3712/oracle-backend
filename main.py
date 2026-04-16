@@ -11,8 +11,10 @@ import re
 import asyncio
 import random
 import urllib.parse
+import io
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from PIL import Image
 
 app = FastAPI()
 
@@ -165,8 +167,25 @@ async def send_post_to_channel(chat_id: str, bot_token: str, post_text: str, ima
     async with httpx.AsyncClient() as client:
         if image_base64:
             print(f"DEBUG: Отправка фото в Telegram, длина caption: {len(post_text)}")
-            # Исправленный способ отправки фото
-            files = {"photo": ("image.jpg", image_base64, "image/jpeg")}
+            try:
+                # Декодируем base64 в байты
+                image_bytes = base64.b64decode(image_base64)
+                # Пробуем конвертировать в JPEG через Pillow
+                img = Image.open(io.BytesIO(image_bytes))
+                # Конвертируем в RGB (Telegram не любит RGBA)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    rgb_img = Image.new('RGB', img.size, (0, 0, 0))
+                    rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                    img = rgb_img
+                # Сохраняем в буфер
+                output = io.BytesIO()
+                img.save(output, format='JPEG', quality=85)
+                output.seek(0)
+                files = {"photo": ("image.jpg", output, "image/jpeg")}
+            except Exception as e:
+                print(f"DEBUG: Ошибка обработки картинки: {e}, отправляем как есть")
+                files = {"photo": ("image.jpg", image_bytes, "image/jpeg")}
+            
             data = {"chat_id": chat_id, "caption": post_text, "parse_mode": "Markdown"}
             response = await client.post(
                 f"https://api.telegram.org/bot{bot_token}/sendPhoto",
@@ -319,10 +338,22 @@ async def test_photo():
         
         image_base64 = base64.b64encode(img_response.content).decode('utf-8')
         
-        # Отправляем фото
-        files = {"photo": ("test.jpg", image_base64, "image/jpeg")}
-        data = {"chat_id": chat_id, "caption": "🧙 *Тестовое фото от Оракула*", "parse_mode": "Markdown"}
+        # Обрабатываем картинку
+        try:
+            image_bytes = base64.b64decode(image_base64)
+            img = Image.open(io.BytesIO(image_bytes))
+            if img.mode in ('RGBA', 'LA', 'P'):
+                rgb_img = Image.new('RGB', img.size, (0, 0, 0))
+                rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = rgb_img
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=85)
+            output.seek(0)
+            files = {"photo": ("test.jpg", output, "image/jpeg")}
+        except Exception as e:
+            files = {"photo": ("test.jpg", image_bytes, "image/jpeg")}
         
+        data = {"chat_id": chat_id, "caption": "🧙 *Тестовое фото от Оракула*", "parse_mode": "Markdown"}
         response = await client.post(
             f"https://api.telegram.org/bot{bot_token}/sendPhoto",
             data=data,

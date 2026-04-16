@@ -165,11 +165,15 @@ async def send_post_to_channel(chat_id: str, bot_token: str, post_text: str, ima
     async with httpx.AsyncClient() as client:
         if image_base64:
             print(f"DEBUG: Отправка фото в Telegram, длина caption: {len(post_text)}")
-            await client.post(
+            # Исправленный способ отправки фото
+            files = {"photo": ("image.jpg", image_base64, "image/jpeg")}
+            data = {"chat_id": chat_id, "caption": post_text, "parse_mode": "Markdown"}
+            response = await client.post(
                 f"https://api.telegram.org/bot{bot_token}/sendPhoto",
-                data={"chat_id": chat_id, "caption": post_text, "parse_mode": "Markdown"},
-                files={"photo": image_base64}
+                data=data,
+                files=files
             )
+            print(f"DEBUG: Ответ Telegram: {response.status_code} - {response.text[:200]}")
             print(f"DEBUG: Фото отправлено")
         else:
             print(f"DEBUG: Отправка только текста в Telegram")
@@ -294,6 +298,38 @@ async def test_evening():
     print("DEBUG: /api/test-evening вызван")
     await evening_post_job()
     return {"status": "ok"}
+
+# ==================== ВРЕМЕННЫЙ ЭНДПОИНТ ДЛЯ ТЕСТА ФОТО ====================
+@app.get("/test-photo")
+async def test_photo():
+    """Временный эндпоинт для проверки отправки фото"""
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        return {"error": "Не настроены TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID"}
+    
+    image_url = "https://image.pollinations.ai/prompt/тестовое%20фото%20готический%20стиль?width=512&height=512"
+    
+    async with httpx.AsyncClient() as client:
+        # Скачиваем картинку
+        img_response = await client.get(image_url)
+        if img_response.status_code != 200:
+            return {"error": f"Не удалось скачать картинку: {img_response.status_code}"}
+        
+        image_base64 = base64.b64encode(img_response.content).decode('utf-8')
+        
+        # Отправляем фото
+        files = {"photo": ("test.jpg", image_base64, "image/jpeg")}
+        data = {"chat_id": chat_id, "caption": "🧙 *Тестовое фото от Оракула*", "parse_mode": "Markdown"}
+        
+        response = await client.post(
+            f"https://api.telegram.org/bot{bot_token}/sendPhoto",
+            data=data,
+            files=files
+        )
+        
+        return response.json()
 
 # ==================== ГОРОСКОП ====================
 ZODIAC_SIGNS = [

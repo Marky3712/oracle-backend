@@ -146,7 +146,7 @@ async def generate_post_with_image(topic: str, hour: int) -> dict:
         post_text = await gigachat.chat(text_messages, temperature=0.8)
         
         # Генерация картинки через pollinations.ai
-        image_base64 = await gigachat.generate_image(image_prompt)
+        image_base64 = None
         
         return {
             "success": True,
